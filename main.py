@@ -1,27 +1,82 @@
 import streamlit as st
-from utils import generate_pdf_report
+import json
+from datetime import datetime
 
-st.title("Real Estate Deal Analyzer")
+LEADS_FILE = "realtors.json"
 
-# Step 1: Property Details
-property_sqft = st.number_input("Property Square Footage", min_value=0)
+def load_realtors():
+    try:
+        with open(LEADS_FILE, "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []
 
-# User directly inputs estimated price per sqft
-estimated_price_per_sqft = st.number_input("Estimated Price per Sq Ft", min_value=0.0)
-arv = estimated_price_per_sqft * property_sqft
+def save_realtors(realtors):
+    with open(LEADS_FILE, "w") as file:
+        json.dump(realtors, file, indent=4)
 
-st.write(f"Estimated ARV: ${arv:.2f}")
+def add_realtor(name, phone, follow_up_date):
+    realtors = load_realtors()
+    realtors.append({
+        "name": name,
+        "phone": phone,
+        "follow_up_date": follow_up_date,
+        "status": "Pending"
+    })
+    save_realtors(realtors)
 
-# Repair Costs
-repair_cost = st.number_input("Repair Cost ($)", min_value=0)
+def view_realtors():
+    realtors = load_realtors()
+    if not realtors:
+        st.write("No realtors found.")
+        return
+    st.write("Current Realtor Contacts:")
+    for i, r in enumerate(realtors, start=1):
+        st.write(f"{i}. {r['name']} | {r['phone']} | Follow-up: {r['follow_up_date']} | Status: {r['status']}")
 
-# Acquisition Cost
-acquisition_cost = st.number_input("Acquisition Cost ($)", min_value=0)
+def follow_up_alerts():
+    realtors = load_realtors()
+    today = datetime.now().strftime("%Y-%m-%d")
+    alerts = [r for r in realtors if r["follow_up_date"] <= today and r["status"] == "Pending"]
 
-profit = arv - (acquisition_cost + repair_cost)
-st.write(f"Estimated Profit: ${profit:.2f}")
+    if alerts:
+        st.write("Realtors to Follow Up Today or Overdue:")
+        for r in alerts:
+            st.write(f"{r['name']} | {r['phone']} | Follow-up Date: {r['follow_up_date']}")
+    else:
+        st.write("No follow-ups needed today.")
 
-# Generate PDF (if still desired)
-if st.button("Generate PDF Report"):
-    generate_pdf_report("Real_Estate_Report.pdf", [], arv, repair_cost, acquisition_cost, profit)
-    st.success("PDF Report Generated!")
+def update_realtor_status(index, status):
+    realtors = load_realtors()
+    if 0 <= index < len(realtors):
+        realtors[index]["status"] = status
+        save_realtors(realtors)
+        st.success("Realtor status updated successfully!")
+    else:
+        st.error("Invalid realtor index.")
+
+# Streamlit Interface
+st.title("Realtor Contact Tracker")
+
+st.header("Add a New Realtor Contact")
+name = st.text_input("Realtor Name")
+phone = st.text_input("Phone Number")
+follow_up_date = st.date_input("Follow-up Date")
+if st.button("Add Realtor"):
+    if name and phone and follow_up_date:
+        add_realtor(name, phone, follow_up_date.strftime("%Y-%m-%d"))
+        st.success("Realtor added successfully!")
+    else:
+        st.error("Please fill out all fields.")
+
+st.header("View Existing Realtors")
+view_realtors()
+
+st.header("Follow-Up Alerts")
+follow_up_alerts()
+
+st.header("Update Realtor Status")
+index_to_update = st.number_input("Enter Realtor Number to Update", min_value=1, step=1)
+new_status = st.text_input("Enter New Status (e.g., Completed, Pending)")
+if st.button("Update Status"):
+    update_realtor_status(index_to_update - 1, new_status)
